@@ -1,4 +1,15 @@
-# Mixtape — Codebase Map
+# Mixtape
+
+## AI Usage
+
+I used Claude Code to trace and verify, not to author fixes blindly.
+
+- **Tracing:** I asked it to follow each symptom from route → service → the function owning the logic (e.g. `listen` → `record_listening_event()` → `update_listening_streak()`), which found the right file fast.
+- **Docstring vs. code:** Its most useful role was flagging where code diverged from documented intent — the `weekday() != 6` guard (#1), the missing `create_notification()` call (#4), the `songs[:-1]` slice (#5).
+- **Verified myself:** I ran the full pytest suite after every change — that's how I confirmed the 2 failing tests after #4 were the pre-existing #5 bug, not a regression.
+- **Where it fell short:** Its first test run failed (assumed a global `python`; the project needs the `.venv`). In review it also wrongly claimed the "how to reproduce" field was missing — it had judged the RCA block in isolation instead of reading the whole doc, which I corrected.
+
+## Codebase Map
 
 Mixtape is a Flask + SQLAlchemy JSON API for a social music app. It includes services such as share songs, rate songs, build collaborative playlists, track listening streaks, and see what friends are playing. The format is layered as **routes → services → models**.
 
@@ -86,3 +97,7 @@ The recipient is derived from `Song.shared_by` — the person who first shared t
 **The root cause:** The return statement used `songs[:-1]` instead of `songs`, discarding the last (highest-position) song from an otherwise-correct ordered query. So every playlist read was one song short, and a single-song playlist returned an empty list.
 
 **My fix and side-effect check:** I changed `songs[:-1]` to `songs` so all fetched songs are returned. Ran the full suite (13 passed), including the two previously-failing playlist tests. Boundary check: the fix is correct for a single-song playlist (now returns that song instead of `[]`) and for an empty playlist (still returns `[]`).
+
+## Git Log
+
+![alt text](image.png)
