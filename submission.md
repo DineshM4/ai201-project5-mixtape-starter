@@ -59,4 +59,4 @@ The recipient is derived from `Song.shared_by` — the person who first shared t
 
 1. Create a playlist and add several songs to it via `POST /playlists/<playlist_id>/songs`.
 2. Fetch the songs: `GET /playlists/<playlist_id>/songs`.
-3. **Expected:** all added songs returned in order. **Actual:** the last (highest-position) song is missing and `count` is one short, because `get_playlist_songs()` slices the result with `songs[:-1]`.
+3. **Expected:** all added songs returned in order. **Actual:** the last (highest-position) song is missing and `count` is one short, because `get_playlist_songs()` slices the last result.
