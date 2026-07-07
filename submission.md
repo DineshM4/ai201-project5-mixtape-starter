@@ -38,3 +38,25 @@ The recipient is derived from `Song.shared_by` — the person who first shared t
 - #1: My listening streak keeps resetting
 - #4: I got notified when a friend added my song to a playlist but not when they rated it
 - #5: The last song in a playlist never shows up
+
+## How to Reproduce each Bug
+
+### #1 — My listening streak keeps resetting
+
+1. Pick a user and set their `last_listened_at` to a Saturday and `listening_streak` to some value (e.g. 5).
+2. On the following **Sunday**, call `POST /songs/<song_id>/listen` with `{"user_id": "<user_id>"}`.
+3. Check the streak via `GET /users/<user_id>/streak`.
+4. **Expected:** streak increments to 6 (listened on consecutive days). **Actual:** streak resets to 1, because the Sunday (`weekday == 6`) guard blocks the increment.
+
+### #4 — Notified when a song is added to a playlist but not when it's rated
+
+1. As user A, share a song (so `song.shared_by == A`).
+2. As user B, rate that song: `POST /songs/<song_id>/rate` with `{"user_id": "<B>", "score": 5}`.
+3. As user A, fetch notifications: `GET /users/<A>/notifications`.
+4. **Expected:** a `song_rated` notification for A. **Actual:** no notification exists, because `rate_song()` never calls `create_notification()` (unlike `add_to_playlist()`).
+
+### #5 — The last song in a playlist never shows up
+
+1. Create a playlist and add several songs to it via `POST /playlists/<playlist_id>/songs`.
+2. Fetch the songs: `GET /playlists/<playlist_id>/songs`.
+3. **Expected:** all added songs returned in order. **Actual:** the last (highest-position) song is missing and `count` is one short, because `get_playlist_songs()` slices the result with `songs[:-1]`.
