@@ -78,3 +78,11 @@ The recipient is derived from `Song.shared_by` — the person who first shared t
 **The root cause:** `rate_song()` was missing the notification step entirely. It persisted the `Rating` and returned, so the song's original sharer was never told their song had been rated — unlike every other interaction on a shared song.
 
 **My fix and side-effect check:** After the commit in `rate_song()`, I added a `create_notification()` call mirroring `add_to_playlist()`: guarded by `song.shared_by != user_id`, type `"song_rated"`, with a body naming the rater, song, and score. I ran the full suite: all rating/notification tests pass (the only 2 failures are the pre-existing bug #5 playlist-slice cases, untouched by this change). The self-rating boundary is covered by the `!= user_id` guard — a user rating their own shared song gets no notification.
+
+### #5 — The last song in a playlist never shows up
+
+**How I found the root cause:** `GET /playlists/<id>/songs` → `get_playlist_songs()` in [services/playlist_service.py:38](services/playlist_service.py#L38). The query on lines 58–64 properly selects every song ordered ascending by position, so the data layer itself was fine. The problem was the `return` on line 66 sliced the result with `songs[:-1]`, which drops the last element. This directly contradicted the docstring's "This function returns all songs in the playlist." That slice was the specific cause.
+
+**The root cause:** The return statement used `songs[:-1]` instead of `songs`, discarding the last (highest-position) song from an otherwise-correct ordered query. So every playlist read was one song short, and a single-song playlist returned an empty list.
+
+**My fix and side-effect check:** I changed `songs[:-1]` to `songs` so all fetched songs are returned. Ran the full suite (13 passed), including the two previously-failing playlist tests. Boundary check: the fix is correct for a single-song playlist (now returns that song instead of `[]`) and for an empty playlist (still returns `[]`).
