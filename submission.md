@@ -60,3 +60,13 @@ The recipient is derived from `Song.shared_by` — the person who first shared t
 1. Create a playlist and add several songs to it via `POST /playlists/<playlist_id>/songs`.
 2. Fetch the songs: `GET /playlists/<playlist_id>/songs`.
 3. **Expected:** all added songs returned in order. **Actual:** the last (highest-position) song is missing and `count` is one short, because `get_playlist_songs()` slices the last result.
+
+## Root Cause Analysis
+
+### #1 — My listening streak keeps resetting
+
+**How I found the root cause:** I traced the data flow from the symptom. `POST /songs/<id>/listen` in [routes/songs.py:50](routes/songs.py#L50) calls `record_listening_event()`, which delegates to `update_listening_streak()` in [services/streak_service.py:42](services/streak_service.py#L42). Reading that function's branch logic against its own docstring, the consecutive-day branch on line 73 had an extra `and today.weekday() != 6` clause the docstring never mentions, which made the code suspicious. 
+
+**The root cause:** The consecutive-day increment condition was `days_since_last == 1 and today.weekday() != 6`. When the current day is a Sunday (`weekday() == 6`), a legitimate consecutive-day listen fails this condition and falls through to the `else` branch, which resets `listening_streak` to 1. So any streak that would have advanced onto a Sunday got wiped instead.
+
+**My fix and side-effect check:** I removed the `and today.weekday() != 6` clause so the branch is just `days_since_last == 1`, matching the documented rule "if the user listened yesterday, streak increments by 1." Then I verified with the full streak suite (5 passed): the Sunday case now increments, the same-day case still doesn't double-count, and the skipped-day case still resets to 1 — confirming both sides of the day-gap boundary behave correctly.
